@@ -50,8 +50,60 @@ void QuantEngine::LoadConfig(const std::string& yml)
     else
     {
         FMTLOG(fmtlog::INF, "QuantEngine::LoadXQuantConfig {} successed {}", yml, m_XQuantConfig.AccountList.size());
+
+        std::string errorString;
+        bool ok = Utils::LoadTickerList(m_XQuantConfig.TickerListPath.c_str(), m_TickerPropertyList, errorString);
+        if(ok)
+        {
+            FMTLOG(fmtlog::INF, "QuantEngine::LoadTickerList {} successed", m_XQuantConfig.TickerListPath);
+            for(auto it = m_TickerPropertyList.begin(); it != m_TickerPropertyList.end(); it++)
+            {
+                m_TickerPropertyMap[it->Ticker] = *it;
+            }
+        }
+        else
+        {
+            FMTLOG(fmtlog::WRN, "QuantEngine::LoadTickerList {} failed, {}", m_XQuantConfig.TickerListPath, errorString);
+        }
+        std::string Today = Utils::getCurrentDay();
+        uint64_t timestamp = Utils::getTimeSec();
+        uint64_t compare_time = Utils::getTimeStamp(std::string(Today + " 17:00:00").c_str());
+        for(int i = 0; i < m_XQuantConfig.TradingSection.size(); i++)
+        {
+            uint64_t start_time = Utils::getTimeStamp(std::string(Today + " " + m_XQuantConfig.TradingSection.at(i).first).c_str());
+            uint64_t end_time = Utils::getTimeStamp(std::string(Today + " " + m_XQuantConfig.TradingSection.at(i).second).c_str());
+            // 夜盘
+            if(compare_time < start_time)
+            {
+                if(end_time < start_time)
+                {
+                    end_time = end_time + 24 * 60 * 60;
+                }
+                std::pair<int64_t, int64_t> section;
+                section.first = start_time;
+                section.second = end_time;
+                m_TradingSectionVec.push_back(section);
+                FMTLOG(fmtlog::INF, "QuantEngine::TradingSection {}-{} {}-{}", 
+                        m_XQuantConfig.TradingSection.at(i).first, m_XQuantConfig.TradingSection.at(i).second,
+                        start_time, end_time);
+            }
+            else // 日盘
+            {
+                // 日盘盘中启动时过滤已经执行交易小节
+                if(timestamp > end_time)
+                {
+                    continue;
+                }
+                std::pair<int64_t, int64_t> section;
+                section.first = start_time;
+                section.second = end_time;
+                m_TradingSectionVec.push_back(section);
+                FMTLOG(fmtlog::INF, "QuantEngine::TradingSection {}-{} {}-{}", 
+                        m_XQuantConfig.TradingSection.at(i).first, m_XQuantConfig.TradingSection.at(i).second,
+                        start_time, end_time);
+            }
+        }
         m_OrderMsg.MessageType = Message::EMessageType::EOrderRequest;
-        m_OrderMsg.OrderRequest.EngineID = m_XQuantConfig.StrategyID;
         m_OrderMsg.OrderRequest.OrderType = Message::EOrderType::ELIMIT;
         m_OrderMsg.OrderRequest.Offset = 0;
         m_OrderMsg.OrderRequest.RiskStatus = Message::ERiskStatusType::EPREPARE_CHECKED;
@@ -74,8 +126,8 @@ void QuantEngine::Start()
         Accounts += m_XQuantConfig.AccountList.at(i);
         Accounts += " ";
     }
-    FMTLOG(fmtlog::INF, "QuantEngine::Start Strategy:{} StrategyID:{} MarketServer:{} OrderServer:{} Account:{}", 
-            m_XQuantConfig.StrategyName, m_XQuantConfig.StrategyID, m_XQuantConfig.MarketServerName, m_XQuantConfig.OrderServerName, Accounts);
+    FMTLOG(fmtlog::INF, "QuantEngine::Start Strategy:{} MarketServer:{} OrderServer:{} Account:{}", 
+            m_XQuantConfig.StrategyName, m_XQuantConfig.MarketServerName, m_XQuantConfig.OrderServerName, Accounts);
     // Update App Status
     InitAppStatus();
     
@@ -95,7 +147,8 @@ void QuantEngine::Start()
     for(int i = 0; i < m_XQuantConfig.AccountList.size(); i++)
     {
         FMTLOG(fmtlog::INF, "QuantEngine::Start {} connecting to {}", m_XQuantConfig.AccountList.at(i), m_XQuantConfig.OrderServerName + m_XQuantConfig.AccountList.at(i));
-        SHMIPC::SHMConnection<Message::PackMessage, ClientConf>* Client = new SHMIPC::SHMConnection<Message::PackMessage, ClientConf>(m_XQuantConfig.AccountList.at(i));
+        std::string clientName = m_XQuantConfig.StrategyName + m_XQuantConfig.AccountList.at(i);
+        SHMIPC::SHMConnection<Message::PackMessage, ClientConf>* Client = new SHMIPC::SHMConnection<Message::PackMessage, ClientConf>(clientName);
         Client->Start(m_XQuantConfig.OrderServerName + m_XQuantConfig.AccountList.at(i));
         if(Client->IsConnected())
         {
@@ -111,7 +164,8 @@ void QuantEngine::Start()
     // 创建策略
     if(m_XQuantConfig.StrategyName == "TestStrategy")
     {
-        m_pStrategy = new TestStrategy;
+        m_pStrategy = new TestStrategy();
+        m_pStrategy->LoadXQuantConfig(m_XQuantConfig);
         FMTLOG(fmtlog::INF, "QuantEngine::Start created Strategy:{}", m_XQuantConfig.StrategyName);
     }
 
@@ -151,6 +205,9 @@ void QuantEngine::RegisterClient(const char *ip, unsigned int port)
 
 void QuantEngine::WorkThreadFunc()
 {
+    bool ret = Utils::ThreadBind(pthread_self(), m_XQuantConfig.CPUSET.at(0));
+    FMTLOG(fmtlog::INF, "QuantEngine::WorkThreadFunc CPU:{} Strategy:{} Running ret:{}", m_XQuantConfig.CPUSET.at(0), m_XQuantConfig.StrategyName, ret);
+
     memset(&m_PackMessage, 0, sizeof(m_PackMessage));
     m_PackMessage.MessageType = Message::EMessageType::EEventLog;
     m_PackMessage.EventLog.Level = Message::EEventLogLevel::EINFO;
@@ -161,75 +218,120 @@ void QuantEngine::WorkThreadFunc()
                     m_XQuantConfig.StrategyName, m_XQuantConfig.MarketServerName, m_XQuantConfig.OrderServerName);
     strncpy(m_PackMessage.EventLog.UpdateTime, Utils::getCurrentTimeUs(), sizeof(m_PackMessage.EventLog.UpdateTime));
     m_pHPPackClient->SendData((const unsigned char*)&m_PackMessage, sizeof(m_PackMessage));
-
-    FMTLOG(fmtlog::INF, "QuantEngine::WorkThreadFunc Strategy:{} Running", m_XQuantConfig.StrategyName);
     
+    int64_t section_start = 0;
+    int64_t section_end = 0;
     while (true)
     {
+        int64_t CurrentTimeStamp = Utils::getTimeMs();
+        bool IsTrading = CheckTrading(CurrentTimeStamp, section_start, section_end);
         // 收取行情数据
         m_pDataClient->HandleMsg();
         bool ok = m_pDataClient->Pop(m_PackMessage);
         if(ok)
         {
-            bool NewOrder = false;
-            if(Message::EMessageType::EFutureMarketData == m_PackMessage.MessageType)
+            if(IsTrading)
             {
-                NewOrder = m_pStrategy->Run(m_PackMessage, m_OrderMsg);
-                FMTLOG(fmtlog::DBG, "QuantEngine::WorkThreadFunc recv data Ticker:{} UpdateTime:{} NewOrder:{}", 
-                        m_PackMessage.FutureMarketData.Ticker, m_PackMessage.FutureMarketData.UpdateTime, NewOrder);
+                bool NewOrder = false;
+                if(Message::EMessageType::EFutureMarketData == m_PackMessage.MessageType)
+                {
+                    // 过滤策略交易的标的
+                    auto it = m_TickerPropertyMap.find(m_PackMessage.FutureMarketData.Ticker);
+                    if(it != m_TickerPropertyMap.end())
+                    {
+                        NewOrder = m_pStrategy->Run(section_start, section_end, m_PackMessage, m_OrderMsg);
+                        FMTLOG(fmtlog::DBG, "QuantEngine::WorkThreadFunc recv data Ticker:{} UpdateTime:{} NewOrder:{}", 
+                                m_PackMessage.FutureMarketData.Ticker, m_PackMessage.FutureMarketData.UpdateTime, NewOrder);
+                    }
+                }
+                else if(Message::EMessageType::EStockMarketData == m_PackMessage.MessageType)
+                {
+                    // 过滤策略交易的标的
+                    auto it = m_TickerPropertyMap.find(m_PackMessage.StockMarketData.Ticker);
+                    if(it != m_TickerPropertyMap.end())
+                    {
+                        NewOrder = m_pStrategy->Run(section_start, section_end, m_PackMessage, m_OrderMsg);
+                        FMTLOG(fmtlog::DBG, "QuantEngine::WorkThreadFunc recv data Ticker:{} UpdateTime:{} NewOrder:{}", 
+                                m_PackMessage.StockMarketData.Ticker, m_PackMessage.StockMarketData.UpdateTime, NewOrder);
+                    }
+                }
+                if(NewOrder)
+                {
+                    // 发送订单到内存队列
+                    for(auto it = m_OrderClientMap.begin(); it != m_OrderClientMap.end(); it++)
+                    {   
+                        strncpy(m_OrderMsg.OrderRequest.Account, it->first.c_str(), sizeof(m_OrderMsg.OrderRequest.Account));
+                        strncpy(m_OrderMsg.OrderRequest.SendTime, Utils::getCurrentTimeUs(), sizeof(m_OrderMsg.OrderRequest.SendTime));
+                        it->second->Push(m_OrderMsg);
+                        it->second->HandleMsg();
+                    }
+                }
             }
-            else if(Message::EMessageType::EStockMarketData == m_PackMessage.MessageType)
-            {
-                NewOrder = m_pStrategy->Run(m_PackMessage, m_OrderMsg);
-                FMTLOG(fmtlog::DBG, "QuantEngine::WorkThreadFunc recv data Ticker:{} UpdateTime:{} NewOrder:{}", 
-                        m_PackMessage.StockMarketData.Ticker, m_PackMessage.StockMarketData.UpdateTime, NewOrder);
-            }
-            if(NewOrder)
-            {
-                // 发送订单到内存队列
-                for(auto it = m_OrderClientMap.begin(); it != m_OrderClientMap.end(); it++)
-                {   
-                    strncpy(m_OrderMsg.OrderRequest.Account, it->first.c_str(), sizeof(m_OrderMsg.OrderRequest.Account));
-                    strncpy(m_OrderMsg.OrderRequest.SendTime, Utils::getCurrentTimeUs(), sizeof(m_OrderMsg.OrderRequest.SendTime));
-                    it->second->Push(m_OrderMsg);
-                    it->second->HandleMsg();
+        }
+        else
+        {
+            // 收取回报
+            for(auto it = m_OrderClientMap.begin(); it != m_OrderClientMap.end(); it++)
+            {   
+                it->second->HandleMsg();
+                bool ret = it->second->Pop(m_PackMessage);
+                if(ret)
+                {
+                    if(Message::EMessageType::EOrderStatus == m_PackMessage.MessageType)
+                    {
+                        m_pStrategy->OnOrderStatus(m_PackMessage.OrderStatus);
+                        FMTLOG(fmtlog::DBG, "QuantEngine::WorkThreadFunc recv OrderStatus Account:{} Ticker:{} UpdateTime:{}", 
+                                m_PackMessage.OrderStatus.Account, m_PackMessage.OrderStatus.Ticker, m_PackMessage.OrderStatus.UpdateTime);
+                    }
+                    else if(Message::EMessageType::EAccountFund == m_PackMessage.MessageType)
+                    {
+                        m_pStrategy->OnAccountFund(m_PackMessage.AccountFund);
+                        FMTLOG(fmtlog::DBG, "QuantEngine::WorkThreadFunc recv AccountFund Account:{} Balance:{}", 
+                                m_PackMessage.AccountFund.Account, m_PackMessage.AccountFund.Balance);
+                    }
+                    else if(Message::EMessageType::EAccountPosition == m_PackMessage.MessageType)
+                    {
+                        m_pStrategy->OnAccountPosition(m_PackMessage.AccountPosition);
+                        FMTLOG(fmtlog::DBG, "QuantEngine::WorkThreadFunc recv AccountPosition Account:{} Ticker:{} UpdateTime:{}", 
+                                m_PackMessage.AccountPosition.Account, m_PackMessage.AccountPosition.Ticker, m_PackMessage.AccountPosition.UpdateTime);
+                    }
                 }
             }
         }
 
-        // 收取回报
-        for(auto it = m_OrderClientMap.begin(); it != m_OrderClientMap.end(); it++)
-        {   
-            it->second->HandleMsg();
-            bool ret = it->second->Pop(m_PackMessage);
-            if(ret)
-            {
-                if(Message::EMessageType::EAccountFund == m_PackMessage.MessageType)
-                {
-                    m_pStrategy->OnAccountFund(m_PackMessage.AccountFund);
-                    FMTLOG(fmtlog::DBG, "QuantEngine::WorkThreadFunc recv AccountFund Account:{} Balance:{}", 
-                            m_PackMessage.AccountFund.Account, m_PackMessage.AccountFund.Balance);
-                }
-                else if(Message::EMessageType::EAccountPosition == m_PackMessage.MessageType)
-                {
-                    m_pStrategy->OnAccountPosition(m_PackMessage.AccountPosition);
-                    FMTLOG(fmtlog::DBG, "QuantEngine::WorkThreadFunc recv AccountPosition Account:{} Ticker:{} UpdateTime:{}", 
-                            m_PackMessage.AccountPosition.Account, m_PackMessage.AccountPosition.Ticker, m_PackMessage.AccountPosition.UpdateTime);
-                }
-                else if(Message::EMessageType::EOrderStatus == m_PackMessage.MessageType)
-                {
-                    m_pStrategy->OnOrderStatus(m_PackMessage.OrderStatus);
-                    FMTLOG(fmtlog::DBG, "QuantEngine::WorkThreadFunc recv OrderStatus Account:{} Ticker:{} UpdateTime:{}", 
-                            m_PackMessage.OrderStatus.Account, m_PackMessage.OrderStatus.Ticker, m_PackMessage.OrderStatus.UpdateTime);
-                }
-            }
+        static unsigned long PreTimeStamp = CurrentTimeStamp / 1000;
+        if(PreTimeStamp < CurrentTimeStamp / 1000)
+        {
+            PreTimeStamp = CurrentTimeStamp / 1000;
+        }
+        if(PreTimeStamp % 60 == 2)
+        {
+            m_pStrategy->CloseKLine(section_start, section_end, CurrentTimeStamp);
+            PreTimeStamp += 1;
         }
     }
+}
+
+bool QuantEngine::CheckTrading(int64_t timestamp, int64_t& section_start, int64_t& section_end)
+{
+    bool ret = false;
+    for(int i = 0; i < m_TradingSectionVec.size(); i++)
+    {
+        if(m_TradingSectionVec.at(i).first * 1000 <= timestamp && timestamp < m_TradingSectionVec.at(i).second * 1000)
+        {
+            ret = true;
+            section_start = m_TradingSectionVec.at(i).first * 1000;
+            section_end = m_TradingSectionVec.at(i).second * 1000;
+            break;
+        }
+    }
+    return ret;
 }
 
 void QuantEngine::InitAppStatus()
 {
     Message::PackMessage message;
+    memset(&message, 0, sizeof(message));
     message.MessageType = Message::EMessageType::EAppStatus;
     QuantEngine::UpdateAppStatus(m_Command, message.AppStatus);
     m_pHPPackClient->SendData((const unsigned char*)&message, sizeof(message));

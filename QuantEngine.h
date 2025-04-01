@@ -47,7 +47,7 @@ public:
 protected:
     void RegisterClient(const char *ip, unsigned int port);
     void WorkThreadFunc();
-
+    bool CheckTrading(int64_t timestamp, int64_t& section_start, int64_t& section_end);
     void InitAppStatus();
     static void UpdateAppStatus(const std::string& cmd, Message::TAppStatus& AppStatus);
 private:
@@ -66,6 +66,15 @@ private:
     Message::PackMessage m_PackMessage;
     Message::PackMessage m_OrderMsg;
     StrategyEngine* m_pStrategy;
+    std::vector<Utils::TickerProperty> m_TickerPropertyList;
+    typedef phmap::parallel_flat_hash_map<std::string, Utils::TickerProperty, 
+                                        phmap::priv::hash_default_hash<std::string>,
+                                        phmap::priv::hash_default_eq<std::string>,
+                                        std::allocator<std::pair<const std::string, Utils::TickerProperty>>, 
+                                        8, std::shared_mutex>
+    TickerPropertyMapT;
+    TickerPropertyMapT m_TickerPropertyMap;
+    std::vector<std::pair<int64_t, int64_t>> m_TradingSectionVec;
 };
 
 

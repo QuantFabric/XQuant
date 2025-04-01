@@ -3,12 +3,19 @@
 
 #include "StrategyEngine.hpp"
 
-
 class TestStrategy : public StrategyEngine
 {
 public:
-
+    TestStrategy()
+    {
+        m_StrategyID = 1;
+    }
 protected:
+    virtual void RegisterCallBack(KLineGenerator& kline_generator)
+    {
+        kline_generator.SetOnWindowBarFunc(std::bind(&TestStrategy::OnWindowBar, this, std::placeholders::_1));
+    }
+
     virtual bool Calculate(const MarketData::TFutureMarketData& data, Message::TOrderRequest& order)
     {
         static uint32_t OrderID = 1;
@@ -22,6 +29,7 @@ protected:
             order.Volume = 1;
             order.Direction = Message::EOrderDirection::EBUY;
             order.OrderToken = OrderID++;
+            order.EngineID = m_StrategyID;
             strncpy(order.RecvMarketTime, data.RecvLocalTime, sizeof(order.RecvMarketTime));
             ret = true;
         }
@@ -34,10 +42,17 @@ protected:
             order.Volume = 1;
             order.Direction = Message::EOrderDirection::ESELL;
             order.OrderToken = OrderID++;
+            order.EngineID = m_StrategyID;
             strncpy(order.RecvMarketTime, data.RecvLocalTime, sizeof(order.RecvMarketTime));
             ret = true;
         }
         return ret;
+    }
+
+    virtual void OnWindowBar(const BarData& data)
+    {
+        FMTLOG(fmtlog::DBG, "TestStrategy::OnWindowBar ticker:{} {}min close:{} start_time:{} end_time:{}", 
+                data.ticker, data.interval/60, data.close, data.start_time, data.end_time);
     }
 };
 

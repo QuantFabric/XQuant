@@ -1,1 +1,6 @@
 /build
+/test
+/python/log
+/python/output
+/python/__pycache__
+/python/*.csv
