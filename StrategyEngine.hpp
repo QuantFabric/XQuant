@@ -85,7 +85,7 @@ public:
     void CloseKLine(int64_t section_start, int64_t section_end, int64_t timestamp)
     {
         // 交易小节延后1min的时间区间强制闭合K线
-        if((section_start + 60 * 1000) <= timestamp && timestamp < (section_end + 60 * 1000))
+        if((section_start + 59 * 1000) <= timestamp && timestamp < (section_end + 59 * 1000))
         {
             for(auto it = m_KLineGeneratorMap.begin(); it != m_KLineGeneratorMap.end(); it++)
             {

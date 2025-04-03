@@ -134,17 +134,21 @@ class BaseEngine(object):
             _start_time = int(time.mktime(struct_time))
             struct_time = time.strptime(f"{datetime.datetime.now().strftime('%Y-%m-%d')} {end_time}", "%Y-%m-%d %H:%M:%S")
             _end_time = int(time.mktime(struct_time))
-            if compare_time < _start_time:
+            if timestamp > compare_time:
                 if _end_time < _start_time:
                     _end_time = _end_time + 24 * 60 * 60
                 self.trading_sections.append((_start_time, _end_time))
-                logger.info(f"BaseEngine TradingSection:{start_time}:{end_time} {_start_time}-{_end_time}")
+                logger.info(f"BaseEngine TradingSection:{start_time}-{end_time} {_start_time}-{_end_time}")
+                break
             else:
+                # 过滤夜盘时间
+                if compare_time < _start_time:
+                    continue
                 # 日盘盘中启动时过滤已经执行交易小节
                 if timestamp > _end_time:
                     continue
                 self.trading_sections.append((_start_time, _end_time))
-                logger.info(f"BaseEngine TradingSection:{start_time}:{end_time} {_start_time}-{_end_time}")
+                logger.info(f"BaseEngine TradingSection:{start_time}-{end_time} {_start_time}-{_end_time}")
 
         self.data_connection = None
         self.hp_pack_client = None
@@ -158,14 +162,8 @@ class BaseEngine(object):
         self.new_order:bool = False
         self.order_request:pack_message.PackMessage = pack_message.PackMessage()
 
-        self.start_time = datetime.datetime.now().time()
-        self.end_time = None
-        target_time1 = datetime.time(15, 30, 0)
-        target_time2 = datetime.time(23, 30, 0)
-        if self.start_time < target_time1:
-            self.end_time = target_time1
-        elif self.start_time < target_time2:
-            self.end_time = target_time2
+        self.start_time = int(time.time())
+        self.end_time = self.trading_sections[-1][1] + 10 * 60
 
     def connect_to_xwatcher(self, ip:str, port:int):
         # 启动客户端连接XWatcher
@@ -318,7 +316,7 @@ class BaseEngine(object):
                     if self.new_order:
                         if self.order_request.MessageType == pack_message.EMessageType.EOrderRequest:
                             for account, order_connection in self.order_connection_dict.items():
-                                self.order_request.Account = account
+                                self.order_request.OrderRequest.Account = account
                                 order_connection.Push(self.order_request)
                                 order_connection.HandleMsg() # 发送订单到XTrader
                                 if self.order_request.OrderRequest.Direction == pack_message.EOrderDirection.EBUY:
@@ -331,7 +329,7 @@ class BaseEngine(object):
             if self.timestamp_sec < timestamp_sec:
                 self.timestamp_sec = timestamp_sec
             if self.timestamp_sec % 60 == 5:
-                if self.section_start + 60 * 1000 <= timestamp_sec * 1000 and timestamp_sec * 1000  < self.section_end + 60 * 1000:
+                if self.section_start + 59 * 1000 <= timestamp_sec * 1000 and timestamp_sec * 1000  < self.section_end + 59 * 1000:
                     self.timestamp_sec = self.timestamp_sec + 1
                     for ticker, current_kline in self.klines.items():
                         current_kline.close_kline(section_start=self.section_end, section_end=self.section_end, timestamp=timestamp_sec * 1000)
@@ -373,10 +371,9 @@ class BaseEngine(object):
                             self.notify_orderstatus(self.msg)
                     else:
                         break
-            # 获取当前时间
-            now = datetime.datetime.now().time()  # 获取当前时间部分
+                        
             # 比较时间
-            if now > self.end_time:
+            if timestamp_sec > self.end_time:
                 logger.info(f"当前时间:{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}，已经收盘，退出程序")
                 break
         sys.stdout.flush()

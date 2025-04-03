@@ -94,7 +94,7 @@ public:
                 // 周期内最后一个Tick切片数据, 关闭K线
                 if(timestamp >= current_kline.end_time)
                 {
-                    if(section_start + 60 * 1000 <= timestamp && timestamp < section_end + 60 * 1000)
+                    if(section_start + 59 * 1000 <= timestamp && timestamp < section_end + 59 * 1000)
                     {
                         m_HistoryKLineMap[interval].push_back(current_kline);
                         m_OnWindowBar(current_kline);
@@ -135,7 +135,7 @@ public:
             // 超时关闭K线
             else if(current_kline.end_time < window_start)
             {
-                if(section_start + 60 * 1000 <= timestamp && timestamp < section_end + 60 * 1000)
+                if(section_start + 59 * 1000 <= timestamp && timestamp < section_end + 59 * 1000)
                 {
                     // 关闭当前K线
                     m_HistoryKLineMap[interval].push_back(current_kline);

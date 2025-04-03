@@ -6,7 +6,7 @@ XQuantConfig:
   TickerListPath: /home/xtrader/XTest/XQuant/TickerList.yml
   MarketServerName: MarketServer
   OrderServerName: OrderServer
-  CPUSET: -1, -1
+  CPUSET: 17
   SnapshotInterval: 0
   SlicePerSec: 2
   KLineIntervals: 60, 300

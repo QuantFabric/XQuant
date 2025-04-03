@@ -103,7 +103,7 @@ class KLineGenerator:
                     current_kline.volume = volume
                 # 周期内最后一个Tick切片数据, 关闭K线
                 if timestamp >= current_kline.end_time:
-                    if section_start + 60 * 1000 <= timestamp and timestamp < section_end + 60 * 1000:
+                    if section_start + 59 * 1000 <= timestamp and timestamp < section_end + 59 * 1000:
                         self.history[interval].append(copy.copy(current_kline)) 
                         if self.on_window_bar:
                             self.on_window_bar(current_kline)
@@ -134,7 +134,7 @@ class KLineGenerator:
                 current_kline.volume = volume
             # 超时关闭K线
             elif(current_kline.end_time < window_start):
-                if section_start + 60 * 1000 <= timestamp and timestamp < section_end + 60 * 1000:
+                if section_start + 59 * 1000 <= timestamp and timestamp < section_end + 59 * 1000:
                     # 关闭当前K线
                     self.history[interval].append(copy.copy(current_kline))
                     if self.on_window_bar:
@@ -197,7 +197,7 @@ class KLineGenerator:
         return history[-limit:] if limit else history
 
     def get_close(self, interval: int):
-        history_list = get_history(interval)
+        history_list = self.get_history(interval)
         closes = np.array([bar.close for bar in history_list], dtype=np.float64)
         return closes
 
@@ -210,21 +210,24 @@ if __name__ == "__main__":
     kline_generator = KLineGenerator(ticker="al2505", snapshot_interval=0, slice_per_sec=2, intervals=[60, 300, 600, 900, 1800])
 
     start_time = int(time.time()) * 1000
+    section_start = start_time
+    section_end = start_time + 1000 * 1000
     # 处理实时数据
     for i in range(0, 1000):
         timestamp:int = start_time + i * 500
         price:float = 100.0 + (i % 20 - 10) * 0.5
         volume:int = 100
-        kline_generator.process_tick(start_time, start_time + 1000*1000, timestamp, price, volume)
+        kline_generator.process_tick(section_start, section_end, timestamp, price, volume)
         
         if (timestamp // 1000) % 60 == 0:
-            kline_generator.close_kline(start_time, start_time + 1000*1000, timestamp)
+            kline_generator.close_kline(section_start, section_end, timestamp)
 
     kline_generator.flush()
     # 获取完整历史数据
     history_1min = kline_generator.get_history(60)
     for bar in history_1min:
-        print(f"ticker:{bar.ticker} {bar.interval // 60}min open:{bar.open} high:{bar.high} low:{bar.low} close:{bar.close} volume:{bar.volume} start_time:{bar.start_time} end_time:{bar.end_time}")
+        print(bar)
     history_5min = kline_generator.get_history(300)
     for bar in history_5min:
-        print(f"ticker:{bar.ticker} {bar.interval // 60}min open:{bar.open} high:{bar.high} low:{bar.low} close:{bar.close} volume:{bar.volume} start_time:{bar.start_time} end_time:{bar.end_time}")
+        print(bar)
+    print(kline_generator.get_close(60))

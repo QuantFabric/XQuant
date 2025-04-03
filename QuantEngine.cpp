@@ -73,7 +73,7 @@ void QuantEngine::LoadConfig(const std::string& yml)
             uint64_t start_time = Utils::getTimeStamp(std::string(Today + " " + m_XQuantConfig.TradingSection.at(i).first).c_str());
             uint64_t end_time = Utils::getTimeStamp(std::string(Today + " " + m_XQuantConfig.TradingSection.at(i).second).c_str());
             // 夜盘
-            if(compare_time < start_time)
+            if(timestamp > compare_time)
             {
                 if(end_time < start_time)
                 {
@@ -86,9 +86,15 @@ void QuantEngine::LoadConfig(const std::string& yml)
                 FMTLOG(fmtlog::INF, "QuantEngine::TradingSection {}-{} {}-{}", 
                         m_XQuantConfig.TradingSection.at(i).first, m_XQuantConfig.TradingSection.at(i).second,
                         start_time, end_time);
+                break;
             }
             else // 日盘
             {
+                // 过滤夜盘时间
+                if(compare_time < start_time)
+                {
+                    continue;
+                }
                 // 日盘盘中启动时过滤已经执行交易小节
                 if(timestamp > end_time)
                 {
