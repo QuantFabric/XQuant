@@ -10,7 +10,7 @@ static void OnWindowBar(const BarData& data)
 int main(int argc, char* argv[]) 
 {
     // 初始化生成器（1分钟和5分钟）
-    uint16_t snapshot_interval = 3;
+    uint16_t snapshot_interval = 0;
     uint16_t slice_per_sec = 2;
     KLineGenerator kline_generator("al2504", snapshot_interval, slice_per_sec, {60, 300});
     kline_generator.SetOnWindowBarFunc(OnWindowBar);
@@ -23,11 +23,11 @@ int main(int argc, char* argv[])
         uint64_t timestamp = start_time + i * 500;
         double price = 100.0 + (i % 20 - 10) * 0.5;
         int volume = 100;
-        kline_generator.ProcessTick(timestamp, price, volume);
+        kline_generator.ProcessTick(start_time, start_time + 1200 * 1000, timestamp, price, volume);
         
         if(timestamp % 60 == 0)
         {
-            kline_generator.CloseKLine(timestamp);
+            kline_generator.CloseKLine(start_time, start_time + 1200 * 1000, timestamp);
         }
     }
 

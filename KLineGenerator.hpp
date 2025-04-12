@@ -1,14 +1,12 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
-#include <chrono>
 #include <cmath>
 #include <algorithm>
 #include <mutex>
 #include <string.h>
 #include <functional>
 
-using namespace std::chrono;
 
 // K线数据结构
 typedef struct BarData
