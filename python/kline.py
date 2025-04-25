@@ -20,6 +20,7 @@ class BarData(object):
     low: float = 0
     close: float = 0
     volume: float = 0
+    turnover: float = 0
 
 
 class KLineGenerator:
@@ -35,6 +36,8 @@ class KLineGenerator:
         self.current_klines: Dict[int, BarData] = {}  # 当前未闭合K线
         self.history: Dict[int, List[BarData]] = {}   # 历史K线存储
         self.on_window_bar:Callable = None
+        self.last_volume: float = 0.0
+        self.last_turnover: float = 0.0
         """初始化数据结构"""
         for interval in self.intervals:
             self.current_klines[interval] = BarData()
@@ -76,7 +79,7 @@ class KLineGenerator:
 
         return time.mktime(local_tm) * 1000
 
-    def process_tick(self, section_start:int, section_end:int, timestamp:int, price:float, volume:int):
+    def process_tick(self, section_start:int, section_end:int, timestamp:int, price:float, volume:int, turnover:float):
         """
         处理实时Tick数据
         """
@@ -87,6 +90,8 @@ class KLineGenerator:
             else:
                 window_end = window_start + (interval - self.snapshot_interval) * 1000
             current_kline = self.current_klines[interval]
+            volume_change: float = volume - self.last_volume
+            turnover_change: float = turnover - self.last_turnover
             # Tick数据在周期内
             if current_kline.end_time > window_start:
                 if current_kline.volume > 0:
@@ -94,13 +99,15 @@ class KLineGenerator:
                     current_kline.high = max(current_kline.high, price)
                     current_kline.low = min(current_kline.low, price)
                     current_kline.close = price
-                    current_kline.volume += volume
+                    current_kline.volume += max(volume_change, 0)
+                    current_kline.turnover += max(turnover_change, 0)
                 else:
                     current_kline.open = price
                     current_kline.high = price
                     current_kline.low = price
                     current_kline.close = price
-                    current_kline.volume = volume
+                    current_kline.volume = max(volume_change, 0)
+                    current_kline.turnover = max(turnover_change, 0)
                 # 周期内最后一个Tick切片数据, 关闭K线
                 if timestamp >= current_kline.end_time:
                     if section_start + 59 * 1000 <= timestamp and timestamp < section_end + 59 * 1000:
@@ -120,6 +127,7 @@ class KLineGenerator:
                     current_kline.low = 0
                     current_kline.close = 0
                     current_kline.volume = 0
+                    current_kline.turnover = 0
             # 第一次初始化K线
             elif current_kline.end_time == 0:
                 # 初始化新K线
@@ -131,7 +139,8 @@ class KLineGenerator:
                 current_kline.high = price
                 current_kline.low = price
                 current_kline.close = price
-                current_kline.volume = volume
+                current_kline.volume = max(volume_change, 0)
+                current_kline.turnover = max(turnover_change, 0)
             # 超时关闭K线
             elif(current_kline.end_time < window_start):
                 if section_start + 59 * 1000 <= timestamp and timestamp < section_end + 59 * 1000:
@@ -148,7 +157,8 @@ class KLineGenerator:
                 current_kline.high = price
                 current_kline.low = price
                 current_kline.close = price
-                current_kline.volume = volume
+                current_kline.volume = max(volume_change, 0)
+                current_kline.turnover = max(turnover_change, 0)
 
     def close_kline(self, section_start:int, section_end:int, timestamp: int):
         """检查并闭合超时的K线"""
@@ -176,6 +186,7 @@ class KLineGenerator:
                 current_kline.low = 0
                 current_kline.close = 0
                 current_kline.volume = 0
+                current_kline.turnover = 0
 
     def flush(self):
         for interval in self.intervals:
@@ -186,6 +197,7 @@ class KLineGenerator:
             current_kline.low = 0
             current_kline.close = 0
             current_kline.volume = 0
+            current_kline.turnover = 0
 
     def get_current_kline(self, interval: int) -> Union[dict, None]:
         """获取当前未闭合的K线"""

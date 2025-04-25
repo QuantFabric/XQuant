@@ -20,6 +20,7 @@ typedef struct BarData
     double low;
     double close;
     int volume;
+    double turnover;
     BarData()
     {
         start_time = 0;
@@ -29,6 +30,7 @@ typedef struct BarData
         low = 0;
         close = 0;
         volume = 0;
+        turnover = 0;
     }
 };
 
@@ -47,6 +49,8 @@ public:
             m_CurrentKLineMap[interval] = BarData();
             m_HistoryKLineMap[interval] = std::vector<BarData>();
         }
+        m_last_volume = 0;
+        m_last_turnover = 0;
     }
 
     void SetOnWindowBarFunc(OnWindowBarFunc OnWindowBar)
@@ -55,7 +59,7 @@ public:
     }
 
     // 处理Tick数据
-    void ProcessTick(int64_t section_start, int64_t section_end, int64_t timestamp, double price, int volume) 
+    void ProcessTick(int64_t section_start, int64_t section_end, int64_t timestamp, double price, int volume, double turnover) 
     {
         for(int interval : m_IntervalsVec) 
         {
@@ -70,6 +74,8 @@ public:
                 window_end = window_start + (interval - m_SnapshotInterval) * 1000;
             }
             BarData& current_kline = m_CurrentKLineMap[interval];
+            int volume_change = volume - m_last_volume;
+            double turnover_change = turnover - m_last_turnover;
             // Tick数据在周期内
             if(current_kline.end_time > window_start)
             {
@@ -79,7 +85,8 @@ public:
                     current_kline.high = std::max(current_kline.high, price);
                     current_kline.low = std::min(current_kline.low, price);
                     current_kline.close = price;
-                    current_kline.volume += volume;
+                    current_kline.volume += std::max(volume_change, 0);
+                    current_kline.turnover += std::max(turnover_change, 0.0);
                 }
                 else // 周期内收到的第一个Tick数据切片
                 {
@@ -87,7 +94,8 @@ public:
                     current_kline.high = price;
                     current_kline.low = price;
                     current_kline.close = price;
-                    current_kline.volume = volume;
+                    current_kline.volume = std::max(volume_change, 0);
+                    current_kline.turnover = std::max(turnover_change, 0.0);
                 }
                 // 周期内最后一个Tick切片数据, 关闭K线
                 if(timestamp >= current_kline.end_time)
@@ -114,6 +122,7 @@ public:
                     current_kline.low = 0;
                     current_kline.close = 0;
                     current_kline.volume = 0;
+                    current_kline.turnover = 0;
                 }
             }
             // 第一次初始化K线
@@ -128,7 +137,8 @@ public:
                 current_kline.high = price;
                 current_kline.low = price;
                 current_kline.close = price;
-                current_kline.volume = volume;
+                current_kline.volume = std::max(volume_change, 0);
+                current_kline.turnover = std::max(turnover_change, 0.0);
             }
             // 超时关闭K线
             else if(current_kline.end_time < window_start)
@@ -148,7 +158,8 @@ public:
                 current_kline.high = price;
                 current_kline.low = price;
                 current_kline.close = price;
-                current_kline.volume = volume;
+                current_kline.volume = std::max(volume_change, 0);
+                current_kline.turnover = std::max(turnover_change, 0.0);
             } 
         }
     }
@@ -185,6 +196,7 @@ public:
                 current_kline.low = 0;
                 current_kline.close = 0;
                 current_kline.volume = 0;
+                current_kline.turnover = 0;
             } 
         }
     }
@@ -235,5 +247,7 @@ private:
     uint16_t m_SnapshotInterval; // 快照周期
     OnWindowBarFunc m_OnWindowBar;
     std::string m_Ticker;
+    int m_last_volume;
+    double m_last_turnover;
 };
 

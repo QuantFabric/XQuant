@@ -286,12 +286,14 @@ class BaseEngine(object):
                                                             slice_per_sec=self.slice_per_sec, intervals=self.intervals)
                             kline_generator.set_call_back(self.on_window_bar)
                             kline_generator.process_tick(section_start=self.section_start, section_end=self.section_end, timestamp=timestamp, 
-                                                        price=self.msg.FutureMarketData.LastPrice, volume=self.msg.FutureMarketData.Volume)
+                                                        price=self.msg.FutureMarketData.LastPrice, volume=self.msg.FutureMarketData.Volume,
+                                                        turnover=self.msg.FutureMarketData.Turnover)
                             self.klines[self.msg.FutureMarketData.Ticker] = kline_generator
                         else:
                             kline_generator = self.klines[self.msg.FutureMarketData.Ticker]
                             kline_generator.process_tick(section_start=self.section_start, section_end=self.section_end, timestamp=timestamp, 
-                                                        price=self.msg.FutureMarketData.LastPrice, volume=self.msg.FutureMarketData.Volume)
+                                                        price=self.msg.FutureMarketData.LastPrice, volume=self.msg.FutureMarketData.Volume,
+                                                        turnover=self.msg.FutureMarketData.Turnover)
                         if timestamp + 10 * 1000 < self.section_end:
                             self.update_tick(self.msg)
 
@@ -304,12 +306,14 @@ class BaseEngine(object):
                                                             slice_per_sec=self.slice_per_sec, intervals=self.intervals)
                             kline_generator.set_call_back(self.on_window_bar)
                             kline_generator.process_tick(section_start=self.section_start, section_end=self.section_end, timestamp=timestamp, 
-                                                        price=self.msg.StockMarketData.LastPrice, volume=self.msg.StockMarketData.Volume)
+                                                        price=self.msg.StockMarketData.LastPrice, volume=self.msg.StockMarketData.Volume,
+                                                        turnover=self.msg.StockMarketData.Turnover)
                             self.klines[self.msg.StockMarketData.Ticker] = kline_generator
                         else:
                             kline_generator = self.klines[self.msg.StockMarketData.Ticker]
                             kline_generator.process_tick(section_start=self.section_start, section_end=self.section_end, timestamp=timestamp, 
-                                                        price=self.msg.StockMarketData.LastPrice, volume=self.msg.StockMarketData.Volume)
+                                                        price=self.msg.StockMarketData.LastPrice, volume=self.msg.StockMarketData.Volume,
+                                                        turnover=self.msg.StockMarketData.Turnover)
                         if timestamp + 10 * 1000 < self.section_end:
                             self.update_tick(self.msg)
                     

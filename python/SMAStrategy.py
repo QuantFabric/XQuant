@@ -23,7 +23,7 @@ class SMAStrategy(engine.BaseEngine):
         self.last_price_dict[msg.FutureMarketData.Ticker] = msg
 
     def on_window_bar(self, bar: BarData):
-        logger.info(f"SMAStrategy::on_window_bar ticker:{bar.ticker} {bar.interval // 60}min close:{bar.close} start_time:{bar.start_time} end_time:{bar.end_time}")
+        logger.info(f"SMAStrategy::on_window_bar ticker:{bar.ticker} {bar.interval // 60}min close:{bar.close} volume:{bar.volume} turnover:{bar.turnover} start_time:{bar.start_time} end_time:{bar.end_time}")
         kline = self.klines.get(bar.ticker, None)
         if kline:
             closes = kline.get_close(interval=60)

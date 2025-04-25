@@ -51,8 +51,8 @@ protected:
 
     virtual void OnWindowBar(const BarData& data)
     {
-        FMTLOG(fmtlog::DBG, "TestStrategy::OnWindowBar ticker:{} {}min close:{} start_time:{} end_time:{}", 
-                data.ticker, data.interval/60, data.close, data.start_time, data.end_time);
+        FMTLOG(fmtlog::DBG, "TestStrategy::OnWindowBar ticker:{} {}min close:{} volume:{} turnover:{} start_time:{} end_time:{}", 
+                data.ticker, data.interval/60, data.close, data.volume, data.turnover, data.start_time, data.end_time);
     }
 };
 

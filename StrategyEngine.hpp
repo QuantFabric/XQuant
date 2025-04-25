@@ -36,13 +36,13 @@ public:
             auto it = m_KLineGeneratorMap.find(msg.FutureMarketData.Ticker);
             if(it != m_KLineGeneratorMap.end())
             {
-                it->second.ProcessTick(section_start, section_end, timestamp, msg.FutureMarketData.LastPrice, msg.FutureMarketData.Volume);
+                it->second.ProcessTick(section_start, section_end, timestamp, msg.FutureMarketData.LastPrice, msg.FutureMarketData.Volume, msg.FutureMarketData.Turnover);
             }
             else
             {
                 KLineGenerator kline_generator = KLineGenerator(msg.FutureMarketData.Ticker, m_XQuantConfig.SnapshotInterval, m_XQuantConfig.SlicePerSec, m_XQuantConfig.KLineIntervals);
                 RegisterCallBack(kline_generator);
-                kline_generator.ProcessTick(section_start, section_end, timestamp, msg.FutureMarketData.LastPrice, msg.FutureMarketData.Volume);
+                kline_generator.ProcessTick(section_start, section_end, timestamp, msg.FutureMarketData.LastPrice, msg.FutureMarketData.Volume, msg.FutureMarketData.Turnover);
                 m_KLineGeneratorMap.insert(std::pair<std::string, KLineGenerator>(msg.FutureMarketData.Ticker, kline_generator));
             }
             if(timestamp + 10 * 1000 < section_end)
@@ -62,13 +62,13 @@ public:
             auto it = m_KLineGeneratorMap.find(msg.StockMarketData.Ticker);
             if(it != m_KLineGeneratorMap.end())
             {
-                it->second.ProcessTick(section_start, section_end, timestamp, msg.StockMarketData.LastPrice, msg.StockMarketData.Volume);
+                it->second.ProcessTick(section_start, section_end, timestamp, msg.StockMarketData.LastPrice, msg.StockMarketData.Volume, msg.StockMarketData.Turnover);
             }
             else
             {
                 KLineGenerator kline_generator = KLineGenerator(msg.StockMarketData.Ticker, m_XQuantConfig.SnapshotInterval, m_XQuantConfig.SlicePerSec, m_XQuantConfig.KLineIntervals);
                 RegisterCallBack(kline_generator);
-                kline_generator.ProcessTick(section_start, section_end, timestamp, msg.StockMarketData.LastPrice, msg.FutureMarketData.Volume);
+                kline_generator.ProcessTick(section_start, section_end, timestamp, msg.StockMarketData.LastPrice, msg.StockMarketData.Volume, msg.StockMarketData.Turnover);
                 m_KLineGeneratorMap.insert(std::pair<std::string, KLineGenerator>(msg.StockMarketData.Ticker, kline_generator));
             }
             if(timestamp + 10 * 1000 < section_end)
@@ -76,8 +76,8 @@ public:
                 ret = Calculate(msg.StockMarketData, order.OrderRequest);
             }
             FMTLOG(fmtlog::DBG, "StrategyEngine::Run ticker:{} UpdateTime:{} {}.{:03d} RecvMarketTime:{} timestamp:{}", 
-                    msg.FutureMarketData.Ticker, Utils::getCurrentDay(), msg.FutureMarketData.UpdateTime, 
-                    msg.FutureMarketData.MillSec, msg.FutureMarketData.RecvLocalTime, timestamp);
+                    msg.StockMarketData.Ticker, Utils::getCurrentDay(), msg.StockMarketData.UpdateTime, 
+                    msg.StockMarketData.MillSec, msg.StockMarketData.RecvLocalTime, timestamp);
         }
         return ret;
     }
