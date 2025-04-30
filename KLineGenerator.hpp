@@ -162,6 +162,8 @@ public:
                 current_kline.turnover = std::max(turnover_change, 0.0);
             } 
         }
+        m_last_volume = volume;
+        m_last_turnover = turnover;
     }
 
     void CloseKLine(int64_t section_start, int64_t section_end, int64_t timestamp)
