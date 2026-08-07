@@ -119,7 +119,6 @@ public:
             Message::EOrderStatusType::EEXCHANGE_ACK == data.OrderStatus ||
             Message::EOrderStatusType::EPARTTRADED == data.OrderStatus ||
             Message::EOrderStatusType::EACTION_ERROR == data.OrderStatus ||
-            Message::EOrderStatusType::ERISK_ORDER_REJECTED == data.OrderStatus ||
             Message::EOrderStatusType::ERISK_ACTION_REJECTED == data.OrderStatus)
         {
             m_OrderStatusMap[key] = data;
@@ -129,8 +128,7 @@ public:
                 Message::EOrderStatusType::EPARTTRADED_CANCELLED == data.OrderStatus ||
                 Message::EOrderStatusType::EBROKER_ERROR == data.OrderStatus ||
                 Message::EOrderStatusType::EEXCHANGE_ERROR == data.OrderStatus ||
-                Message::EOrderStatusType::ERISK_CHECK_SELFMATCH == data.OrderStatus ||
-                Message::EOrderStatusType::ERISK_CHECK_CANCELLIMIT == data.OrderStatus)
+                Message::EOrderStatusType::ERISK_ORDER_REJECTED == data.OrderStatus)
         {
             m_OrderStatusMap.erase(key);
         }
