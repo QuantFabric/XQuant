@@ -84,8 +84,8 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../XAPI/HP-Socket/5.8.2/lib)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../XAPI/FMTLogger/include/)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../XAPI/FMTLogger/lib)
 # YAML-CPP
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../XAPI/YAML-CPP/0.8.0/include/)
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../XAPI/YAML-CPP/0.8.0/lib)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../XAPI/YAML-CPP/0.9.0/include/)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/../XAPI/YAML-CPP/0.9.0/lib)
 # SHMServer
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../SHMServer/)
 
