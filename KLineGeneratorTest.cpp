@@ -23,7 +23,8 @@ int main(int argc, char* argv[])
         uint64_t timestamp = start_time + i * 500;
         double price = 100.0 + (i % 20 - 10) * 0.5;
         int volume = 100;
-        kline_generator.ProcessTick(start_time, start_time + 1200 * 1000, timestamp, price, volume);
+        double turnover = 100.0 * price;
+        kline_generator.ProcessTick(start_time, start_time + 1200 * 1000, timestamp, price, volume, turnover);
         
         if(timestamp % 60 == 0)
         {

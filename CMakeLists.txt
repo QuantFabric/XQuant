@@ -1,10 +1,10 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.20)
 PROJECT(XQuant)
 
 set(CMAKE_CXX_FLAGS "-fPIC -g")
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-SET(AppVersion 0.1.0)
+SET(AppVersion 0.2.0)
 SET(XQuant_Version ${PROJECT_NAME}_${AppVersion})
 
 # 默认输出debug版
@@ -97,4 +97,7 @@ set(SOURCES main.cpp
             HPPackClient.cpp)
 add_executable(${XQuant_Version} ${SOURCES})
 
-target_link_libraries(${XQuant_Version} pthread hpsocket4c yaml-cpp rt)                      
+target_link_libraries(${XQuant_Version} pthread hpsocket4c yaml-cpp rt)
+
+add_executable(XQuantHashMapSemanticsTest HashMapSemanticsTest.cpp)
+target_link_libraries(XQuantHashMapSemanticsTest pthread yaml-cpp rt)

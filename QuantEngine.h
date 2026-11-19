@@ -8,7 +8,6 @@
 #include <thread>
 #include <mutex>
 #include <fmt/core.h>
-#include <unordered_map>
 #include "PackMessage.hpp"
 #include "Util.hpp"
 #include "Singleton.hpp"
@@ -57,8 +56,8 @@ private:
     std::string m_Command;
     SHMIPC::SHMConnection<Message::PackMessage, DataClientConf>* m_pDataClient;
     typedef phmap::parallel_flat_hash_map<std::string, SHMIPC::SHMConnection<Message::PackMessage, ClientConf>*, 
-                                        phmap::priv::hash_default_hash<std::string>,
-                                        phmap::priv::hash_default_eq<std::string>,
+                                        phmap::Hash<std::string>,
+                                        phmap::EqualTo<std::string>,
                                         std::allocator<std::pair<const std::string, SHMIPC::SHMConnection<Message::PackMessage, ClientConf>*>>, 
                                         8, std::shared_mutex>
     OrderClientMapT;
@@ -66,10 +65,11 @@ private:
     Message::PackMessage m_PackMessage;
     Message::PackMessage m_OrderMsg;
     StrategyEngine* m_pStrategy;
+    TestStrategy* m_pTestStrategy;
     std::vector<Utils::TickerProperty> m_TickerPropertyList;
     typedef phmap::parallel_flat_hash_map<std::string, Utils::TickerProperty, 
-                                        phmap::priv::hash_default_hash<std::string>,
-                                        phmap::priv::hash_default_eq<std::string>,
+                                        phmap::Hash<std::string>,
+                                        phmap::EqualTo<std::string>,
                                         std::allocator<std::pair<const std::string, Utils::TickerProperty>>, 
                                         8, std::shared_mutex>
     TickerPropertyMapT;

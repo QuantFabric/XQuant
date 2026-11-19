@@ -1,11 +1,12 @@
 #include <iostream>
 #include <vector>
-#include <unordered_map>
 #include <cmath>
 #include <algorithm>
 #include <mutex>
 #include <string.h>
 #include <functional>
+
+#include "phmap.h"
 
 
 // K线数据结构
@@ -219,7 +220,8 @@ protected:
     int64_t calculate_window_start(int64_t timestamp, int interval) 
     {
         int64_t timestamp_sec = timestamp / 1000;
-        tm local_tm = *localtime(&timestamp_sec);
+        tm local_tm;
+        localtime_r(&timestamp_sec, &local_tm);
         if (interval >= 86400) 
         { 
             // 日线及以上
@@ -243,8 +245,12 @@ protected:
     }
 private:
     std::vector<int> m_IntervalsVec;           // 支持的周期列表（秒）
-    std::unordered_map<int, BarData> m_CurrentKLineMap;      // 当前未闭合的K线
-    std::unordered_map<int, std::vector<BarData>> m_HistoryKLineMap;   // 历史K线存储
+    phmap::flat_hash_map<int, BarData,
+                         phmap::Hash<int>,
+                         phmap::EqualTo<int>> m_CurrentKLineMap;      // 当前未闭合的K线
+    phmap::flat_hash_map<int, std::vector<BarData>,
+                         phmap::Hash<int>,
+                         phmap::EqualTo<int>> m_HistoryKLineMap;   // 历史K线存储
     uint16_t m_slice_per_sec; // 每秒切片数量
     uint16_t m_SnapshotInterval; // 快照周期
     OnWindowBarFunc m_OnWindowBar;

@@ -7,6 +7,7 @@
 
 #include "FMTLogger.hpp"
 #include "KLineGenerator.hpp"
+#include "XQuantHashKeys.hpp"
 
 class StrategyEngine
 {
@@ -22,7 +23,7 @@ public:
         if(Message::EMessageType::EFutureMarketData == msg.MessageType)
         {
             std::string strTime = std::string(msg.FutureMarketData.ActionDay) + " " + msg.FutureMarketData.UpdateTime;
-            struct tm timeStamp;
+            struct tm timeStamp = {};
             if(strptime(strTime.c_str(), "%Y%m%d %H:%M:%S", &timeStamp) == NULL)
             {
                 FMTLOG(fmtlog::WRN, "StrategyEngine::Run strptime error strTime:{}", strTime);
@@ -33,18 +34,20 @@ public:
                 FMTLOG(fmtlog::WRN, "StrategyEngine::Run mktime error strTime:{}", strTime);
             }
             int64_t timestamp  = value * 1000 + msg.FutureMarketData.MillSec;
-            auto it = m_KLineGeneratorMap.find(msg.FutureMarketData.Ticker);
-            if(it != m_KLineGeneratorMap.end())
-            {
-                it->second.ProcessTick(section_start, section_end, timestamp, msg.FutureMarketData.LastPrice, msg.FutureMarketData.Volume, msg.FutureMarketData.Turnover);
-            }
-            else
-            {
-                KLineGenerator kline_generator = KLineGenerator(msg.FutureMarketData.Ticker, m_XQuantConfig.SnapshotInterval, m_XQuantConfig.SlicePerSec, m_XQuantConfig.KLineIntervals);
-                RegisterCallBack(kline_generator);
-                kline_generator.ProcessTick(section_start, section_end, timestamp, msg.FutureMarketData.LastPrice, msg.FutureMarketData.Volume, msg.FutureMarketData.Turnover);
-                m_KLineGeneratorMap.insert(std::pair<std::string, KLineGenerator>(msg.FutureMarketData.Ticker, kline_generator));
-            }
+            const std::string ticker = msg.FutureMarketData.Ticker;
+            m_KLineGeneratorMap.lazy_emplace_l(
+                ticker,
+                [&](KLineGeneratorMapT::value_type& item)
+                {
+                    item.second.ProcessTick(section_start, section_end, timestamp, msg.FutureMarketData.LastPrice, msg.FutureMarketData.Volume, msg.FutureMarketData.Turnover);
+                },
+                [&](const KLineGeneratorMapT::constructor& constructor)
+                {
+                    KLineGenerator kline_generator = KLineGenerator(ticker.c_str(), m_XQuantConfig.SnapshotInterval, m_XQuantConfig.SlicePerSec, m_XQuantConfig.KLineIntervals);
+                    RegisterCallBack(kline_generator);
+                    kline_generator.ProcessTick(section_start, section_end, timestamp, msg.FutureMarketData.LastPrice, msg.FutureMarketData.Volume, msg.FutureMarketData.Turnover);
+                    constructor(ticker, std::move(kline_generator));
+                });
             if(timestamp + 10 * 1000 < section_end)
             {
                 ret = Calculate(msg.FutureMarketData, order.OrderRequest);
@@ -56,21 +59,23 @@ public:
         else if(Message::EMessageType::EStockMarketData == msg.MessageType)
         {
             std::string strTime = std::string(Utils::getCurrentDay()) + " " + msg.StockMarketData.UpdateTime;
-            struct tm timeStamp;
+            struct tm timeStamp = {};
             strptime(strTime.c_str(), "%Y-%m-%d %H:%M:%S", &timeStamp);
             int64_t timestamp  = mktime(&timeStamp) * 1000 + msg.StockMarketData.MillSec;
-            auto it = m_KLineGeneratorMap.find(msg.StockMarketData.Ticker);
-            if(it != m_KLineGeneratorMap.end())
-            {
-                it->second.ProcessTick(section_start, section_end, timestamp, msg.StockMarketData.LastPrice, msg.StockMarketData.Volume, msg.StockMarketData.Turnover);
-            }
-            else
-            {
-                KLineGenerator kline_generator = KLineGenerator(msg.StockMarketData.Ticker, m_XQuantConfig.SnapshotInterval, m_XQuantConfig.SlicePerSec, m_XQuantConfig.KLineIntervals);
-                RegisterCallBack(kline_generator);
-                kline_generator.ProcessTick(section_start, section_end, timestamp, msg.StockMarketData.LastPrice, msg.StockMarketData.Volume, msg.StockMarketData.Turnover);
-                m_KLineGeneratorMap.insert(std::pair<std::string, KLineGenerator>(msg.StockMarketData.Ticker, kline_generator));
-            }
+            const std::string ticker = msg.StockMarketData.Ticker;
+            m_KLineGeneratorMap.lazy_emplace_l(
+                ticker,
+                [&](KLineGeneratorMapT::value_type& item)
+                {
+                    item.second.ProcessTick(section_start, section_end, timestamp, msg.StockMarketData.LastPrice, msg.StockMarketData.Volume, msg.StockMarketData.Turnover);
+                },
+                [&](const KLineGeneratorMapT::constructor& constructor)
+                {
+                    KLineGenerator kline_generator = KLineGenerator(ticker.c_str(), m_XQuantConfig.SnapshotInterval, m_XQuantConfig.SlicePerSec, m_XQuantConfig.KLineIntervals);
+                    RegisterCallBack(kline_generator);
+                    kline_generator.ProcessTick(section_start, section_end, timestamp, msg.StockMarketData.LastPrice, msg.StockMarketData.Volume, msg.StockMarketData.Turnover);
+                    constructor(ticker, std::move(kline_generator));
+                });
             if(timestamp + 10 * 1000 < section_end)
             {
                 ret = Calculate(msg.StockMarketData, order.OrderRequest);
@@ -87,10 +92,10 @@ public:
         // 交易小节延后1min的时间区间强制闭合K线
         if((section_start + 59 * 1000) <= timestamp && timestamp < (section_end + 59 * 1000))
         {
-            for(auto it = m_KLineGeneratorMap.begin(); it != m_KLineGeneratorMap.end(); it++)
+            m_KLineGeneratorMap.for_each_m([&](KLineGeneratorMapT::value_type& item)
             {
-                it->second.CloseKLine(section_start, section_end, timestamp);
-            }
+                item.second.CloseKLine(section_start, section_end, timestamp);
+            });
             FMTLOG(fmtlog::DBG, "StrategyEngine::CloseKLine section_start:{} section_end:{} timestamp:{}", section_start, section_end, timestamp);
         }
     }
@@ -102,18 +107,27 @@ public:
 
     virtual void OnAccountFund(const Message::TAccountFund& data)
     {
-        m_AccountFundMap[data.Account] = data;
+        const std::string key = data.Account;
+        m_AccountFundMap.lazy_emplace_l(
+            key,
+            [&](AccountFundMapT::value_type& item) { item.second = data; },
+            [&](const AccountFundMapT::constructor& constructor) { constructor(key, data); });
     }
 
     virtual void OnAccountPosition(const Message::TAccountPosition& data)
     {
-        std::string key = std::string(data.Account) + ":" + data.Ticker;
-        m_AccountPositionMap[key] = data;
+        const XQuant::AccountTickerKey key =
+            XQuant::MakeAccountTickerKey(data.Account, data.Ticker);
+        m_AccountPositionMap.lazy_emplace_l(
+            key,
+            [&](AccountPositionMapT::value_type& item) { item.second = data; },
+            [&](const AccountPositionMapT::constructor& constructor) { constructor(key, data); });
     }
 
     virtual void OnOrderStatus(const Message::TOrderStatus& data)
     {
-        std::string key = std::string(data.Account) + ":" + data.OrderRef;
+        const XQuant::AccountOrderRefKey key =
+            XQuant::MakeAccountOrderRefKey(data.Account, data.OrderRef);
         if(Message::EOrderStatusType::EORDER_SENDED == data.OrderStatus ||
             Message::EOrderStatusType::EBROKER_ACK == data.OrderStatus ||
             Message::EOrderStatusType::EEXCHANGE_ACK == data.OrderStatus ||
@@ -121,7 +135,10 @@ public:
             Message::EOrderStatusType::EACTION_ERROR == data.OrderStatus ||
             Message::EOrderStatusType::ERISK_ACTION_REJECTED == data.OrderStatus)
         {
-            m_OrderStatusMap[key] = data;
+            m_OrderStatusMap.lazy_emplace_l(
+                key,
+                [&](OrderStatusMapT::value_type& item) { item.second = data; },
+                [&](const OrderStatusMapT::constructor& constructor) { constructor(key, data); });
         }
         else if(Message::EOrderStatusType::EALLTRADED == data.OrderStatus ||
                 Message::EOrderStatusType::ECANCELLED == data.OrderStatus ||
@@ -130,7 +147,7 @@ public:
                 Message::EOrderStatusType::EEXCHANGE_ERROR == data.OrderStatus ||
                 Message::EOrderStatusType::ERISK_ORDER_REJECTED == data.OrderStatus)
         {
-            m_OrderStatusMap.erase(key);
+            m_OrderStatusMap.erase_if(key, [](OrderStatusMapT::value_type&) { return true; });
         }
     }
 
@@ -157,30 +174,30 @@ protected:
     }
 protected:
     typedef phmap::parallel_flat_hash_map<std::string, Message::TAccountFund, 
-                                        phmap::priv::hash_default_hash<std::string>,
-                                        phmap::priv::hash_default_eq<std::string>,
+                                        phmap::Hash<std::string>,
+                                        phmap::EqualTo<std::string>,
                                         std::allocator<std::pair<std::string, Message::TAccountFund>>, 
                                         8, std::shared_mutex>
     AccountFundMapT;
     AccountFundMapT m_AccountFundMap;
-    typedef phmap::parallel_flat_hash_map<std::string, Message::TAccountPosition, 
-                                        phmap::priv::hash_default_hash<std::string>,
-                                        phmap::priv::hash_default_eq<std::string>,
-                                        std::allocator<std::pair<std::string, Message::TAccountPosition>>, 
+    typedef phmap::parallel_flat_hash_map<XQuant::AccountTickerKey, Message::TAccountPosition,
+                                        XQuant::AccountTickerKeyHash,
+                                        XQuant::AccountTickerKeyEqual,
+                                        std::allocator<std::pair<const XQuant::AccountTickerKey, Message::TAccountPosition>>,
                                         8, std::shared_mutex>
     AccountPositionMapT;
     AccountPositionMapT m_AccountPositionMap;
-    typedef phmap::parallel_flat_hash_map<std::string, Message::TOrderStatus, 
-                                        phmap::priv::hash_default_hash<std::string>,
-                                        phmap::priv::hash_default_eq<std::string>,
-                                        std::allocator<std::pair<std::string, Message::TOrderStatus>>, 
+    typedef phmap::parallel_flat_hash_map<XQuant::AccountOrderRefKey, Message::TOrderStatus,
+                                        XQuant::AccountOrderRefKeyHash,
+                                        XQuant::AccountOrderRefKeyEqual,
+                                        std::allocator<std::pair<const XQuant::AccountOrderRefKey, Message::TOrderStatus>>,
                                         8, std::shared_mutex>
     OrderStatusMapT;
     OrderStatusMapT m_OrderStatusMap;
     int32_t m_StrategyID;
     typedef phmap::parallel_flat_hash_map<std::string, KLineGenerator, 
-                                        phmap::priv::hash_default_hash<std::string>,
-                                        phmap::priv::hash_default_eq<std::string>,
+                                        phmap::Hash<std::string>,
+                                        phmap::EqualTo<std::string>,
                                         std::allocator<std::pair<std::string, KLineGenerator>>, 
                                         8, std::shared_mutex>
     KLineGeneratorMapT;
