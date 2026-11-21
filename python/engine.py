@@ -246,7 +246,6 @@ class BaseEngine(object):
             order_connection = self.order_connection_dict.get(account, None)
             if order_connection:
                 order_connection.Push(action_order)
-                order_connection.HandleMsg() # 发送订单到XTrader
 
     def close_all_order(self, section_start:int, section_end:int, timestamp:int):
         pass
@@ -272,7 +271,6 @@ class BaseEngine(object):
             timestamp_sec:int = int(time.time())
             is_trading: bool = self.check_trading(timestamp=timestamp_sec)
             # 收取行情数据
-            self.data_connection.HandleMsg()
             ret = self.data_connection.Pop(self.msg)
             if ret:
                 if is_trading:
@@ -322,7 +320,6 @@ class BaseEngine(object):
                             for account, order_connection in self.order_connection_dict.items():
                                 self.order_request.OrderRequest.Account = account
                                 order_connection.Push(self.order_request)
-                                order_connection.HandleMsg() # 发送订单到XTrader
                                 if self.order_request.OrderRequest.Direction == pack_message.EOrderDirection.EBUY:
                                     logger.info(f"send buy order to {account} ChannelID:{self.order_request.ChannelID} {self.order_request.OrderRequest.Ticker} price:{self.order_request.OrderRequest.Price} orderid:{self.order_request.OrderRequest.OrderToken} Direction:{self.order_request.OrderRequest.Direction} Offset:{self.order_request.OrderRequest.Offset}")
                                 else:
@@ -343,7 +340,6 @@ class BaseEngine(object):
             for account, order_connection in self.order_connection_dict.items():
                 while True:
                     # 收取交易回报信息
-                    order_connection.HandleMsg()
                     ret = order_connection.Pop(self.msg)
                     if ret:
                         if self.msg.MessageType == pack_message.EMessageType.EAccountFund:
