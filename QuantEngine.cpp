@@ -241,7 +241,6 @@ void QuantEngine::WorkThreadFunc()
         int64_t CurrentTimeStamp = Utils::getTimeMs();
         bool IsTrading = CheckTrading(CurrentTimeStamp, section_start, section_end);
         // 收取行情数据
-        m_pDataClient->HandleMsg();
         bool ok = m_pDataClient->Pop(m_PackMessage);
         if(ok)
         {
@@ -288,7 +287,6 @@ void QuantEngine::WorkThreadFunc()
                             [&](const OrderClientMapT::value_type& item)
                             {
                                 item.second->Push(cancelMessage);
-                                item.second->HandleMsg();
                             });
                         if(sent)
                         {
@@ -311,7 +309,6 @@ void QuantEngine::WorkThreadFunc()
                         strncpy(m_OrderMsg.OrderRequest.Account, item.first.c_str(), sizeof(m_OrderMsg.OrderRequest.Account));
                         strncpy(m_OrderMsg.OrderRequest.SendTime, Utils::getCurrentTimeUs(), sizeof(m_OrderMsg.OrderRequest.SendTime));
                         item.second->Push(m_OrderMsg);
-                        item.second->HandleMsg();
                     });
                 }
             }
@@ -321,7 +318,6 @@ void QuantEngine::WorkThreadFunc()
             // 收取回报
             m_OrderClientMap.for_each([&](const OrderClientMapT::value_type& item)
             {
-                item.second->HandleMsg();
                 bool ret = item.second->Pop(m_PackMessage);
                 if(ret)
                 {
